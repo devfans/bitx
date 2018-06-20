@@ -1,5 +1,7 @@
 # bitx
-bytes transfer via udp
+bytes transfer via udp.
+
+Try it: [Download](https://github.com/devfans/bitx/releases)
 
 # Get Started
 
