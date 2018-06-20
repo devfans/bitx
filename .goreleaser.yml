@@ -1,0 +1,18 @@
+builds:
+  - main: main.go
+    binary: bitx
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+# Archive customization
+archive:
+  format: tar.gz
+  replacements:
+    amd64: 64-bit
+    darwin: macOS
+  files:
+    - LICENSE
+    - README.md
