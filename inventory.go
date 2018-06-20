@@ -7,7 +7,7 @@ import (
   "crypto/md5"
   "os"
   "sync/atomic"
-  "github.com/golang/glog"
+  "log"
 )
 
 // Signals for the first byte of the datagram
@@ -31,7 +31,7 @@ func b2i(b []byte) uint32 {
   for i := l; i >= 0 ; i-- {
     delta = uint32(int32(b[i]) << uint(8*(l - i)))
     if delta < uint32(b[i]) {
-      glog.Fatal("Overflow on b2i")
+      log.Fatal("Overflow on b2i")
     }
     total += delta
   }
@@ -174,7 +174,7 @@ func(j *Job) Compose(s uint32 ,data []byte) []byte {
 
 // check job data receiving state
 func (j *Job) Check() ([][]byte, bool) {
-  glog.Infof("Checking %s\n", j.Meta.Name)
+  log.Printf("Checking %s\n", j.Meta.Name)
   bufs := make([][]byte, 0)
   if j.Finished {
     bufs = append(bufs, j.MakeCFM())
@@ -206,7 +206,7 @@ func (j *Job) Check() ([][]byte, bool) {
     reqMax := int(MAX_SEND) / j.Meta.seqLength
     reqCursor := 0
     var reqEnd int
-    var reqShards int
+    // var reqShards int
     for reqCursor < lossCount {
       reqEnd = reqCursor + reqMax
       if reqEnd > lossCount {
@@ -214,21 +214,21 @@ func (j *Job) Check() ([][]byte, bool) {
       }
       req := make([]byte, 0)
       req = append(req, byte(DATA), byte(j.Meta.Id))
-      reqShards = reqEnd - reqCursor
+      // reqShards = reqEnd - reqCursor
       for reqCursor < reqEnd {
         reqSeq := _i2b(int64(loss[reqCursor]), j.Meta.seqLength)
         req = append(req, reqSeq...)
         reqCursor++
       }
-      glog.V(2).Infof("Requesting %d shards for job %s id %d, last: %d\n",
-        reqShards, j.Meta.Name, j.Meta.Id, loss[reqCursor - 1])
+      // log.Printf("Requesting %d shards for job %s id %d, last: %d\n", 
+      // reqShards, j.Meta.Name, j.Meta.Id, loss[reqCursor - 1])
       bufs = append(bufs, req)
     }
   }
 
   // check job status
   j.Size = size
-  glog.Infof("Progress of job %s ================== %d/%d === waiting %d\n", j.Meta.Name, j.Meta.Seqs - uint32(count), j.Meta.Seqs, count)
+  log.Printf("Progress of job %s ================== %d/%d === waiting %d\n", j.Meta.Name, j.Meta.Seqs - uint32(count), j.Meta.Seqs, count)
   if count == 0 {
     j.Finished = true
     bufs = append(bufs, j.MakeCFM())
@@ -241,11 +241,11 @@ func (j *Job) Check() ([][]byte, bool) {
 func (j *Job) Save(b []byte) {
   file, err := os.Create(j.Meta.Name)
   if err != nil {
-    glog.Fatal(err)
+    log.Fatal(err)
   }
   defer file.Close()
   file.Write(b)
-  glog.Infof("File %s is saved .\n", j.Meta.Name)
+  log.Printf("File %s is saved .\n", j.Meta.Name)
 }
 
 func (j *Job) Sum() {
@@ -259,14 +259,14 @@ func (j *Job) Sum() {
     cursor += size
     seq++
   }
-  glog.Infof("Job total length %d\n", len(b))
+  log.Printf("Job total length %d\n", len(b))
   hash := md5.Sum(b)
-  glog.Infof("Job %s hash:\n", j.Meta.Name)
-  glog.Infoln(hash)
-  glog.Infof("File %s desires hash:\n", j.Meta.Name)
-  glog.Infoln(j.Meta.hash)
+  log.Printf("Job %s hash:\n", j.Meta.Name)
+  log.Println(hash)
+  log.Printf("File %s desires hash:\n", j.Meta.Name)
+  log.Println(j.Meta.hash)
   if hash != j.Meta.hash {
-    glog.Fatal("Unexpected failed job receiving for invalid hash detected!\n")
+    log.Fatal("Unexpected failed job receiving for invalid hash detected!\n")
   }
   j.Save(b)
 }
@@ -277,8 +277,8 @@ func (j *Job) MakeShardReq(seq uint32) []byte {
   seqBytes := _i2b(int64(seq), j.Meta.seqLength)
   b = append(b, byte(DATA), byte(j.Meta.Id))
   b = append(b, seqBytes...)
-  glog.V(5).Infof("Sending shard %d request for job %s id %d\n",
-    seq, j.Meta.Name, j.Meta.Id)
+  // log.Printf("Sending shard %d request for job %s id %d\n",
+  // seq, j.Meta.Name, j.Meta.Id)
   return b
 }
 
@@ -286,8 +286,8 @@ func (j *Job) MakeShardReq(seq uint32) []byte {
 func (j *Job) MakeCFM() []byte {
   b := make([]byte, 0)
   b = append(b, byte(CFM), byte(j.Meta.Id))
-  glog.Infof("Sending CFG for job %s id %d\n", j.Meta.Name, j.Meta.Id)
-  glog.V(5).Infoln(b)
+  log.Printf("Sending CFG for job %s id %d\n", j.Meta.Name, j.Meta.Id)
+  // log.Println(b)
   return b
 }
 
@@ -295,8 +295,8 @@ func (j *Job) MakeCFM() []byte {
 func (j *Job) MakeMetaCFM() []byte {
   b := make([]byte, 0)
   b = append(b, byte(META), byte(j.Meta.Id))
-  glog.Infof("Sending META CFG for job %s id %d\n", j.Meta.Name, j.Meta.Id)
-  glog.V(5).Infoln(b)
+  log.Printf("Sending META CFG for job %s id %d\n", j.Meta.Name, j.Meta.Id)
+  // log.Println(b)
   return b
 }
 
@@ -304,7 +304,7 @@ func (j *Job) MakeMetaCFM() []byte {
 func (j *Job) MakeCheckReq() []byte {
   b := make([]byte, 0)
   b = append(b, byte(CHECK), byte(j.Meta.Id))
-  glog.Infof("Making check request for job %s id %d\n", j.Meta.Name, j.Meta.Id)
+  log.Printf("Making check request for job %s id %d\n", j.Meta.Name, j.Meta.Id)
   return b
 }
 
@@ -313,7 +313,7 @@ func(j *Job) Process(bufChan chan []byte, simChan chan int) {
   var err error
   j.buf, err = ioutil.ReadFile(j.Meta.Name) // just pass the job name
   if err != nil {
-     glog.Fatal(err)
+     log.Fatal(err)
   }
   j.Empty.Store(false)
   end := len(j.buf)
@@ -334,7 +334,7 @@ func(j *Job) Process(bufChan chan []byte, simChan chan int) {
         time.Sleep(2*time.Second)
     }
   }
-  glog.Infof("Sent job meta for %s id %d\n", j.Meta.Name, j.Meta.Id)
+  log.Printf("Sent job meta for %s id %d\n", j.Meta.Name, j.Meta.Id)
 
   // step two: send job data
   j.send(bufChan)
@@ -365,8 +365,8 @@ func(j *Job) Process(bufChan chan []byte, simChan chan int) {
     j.update.Store(time.Now().Unix())
   }
   stop <- 1
-  glog.Infof("Job total length %d \n", len(j.buf))
-  glog.Infof("Finished job %s\n", j.Meta.Name)
+  log.Printf("Job total length %d \n", len(j.buf))
+  log.Printf("Finished job %s\n", j.Meta.Name)
   <-simChan
   j.Remove()
 }
@@ -392,8 +392,8 @@ func(j *Job) resendData(b []byte, bufChan chan []byte) {
   for cursor < len(b) {
     seqEnd = cursor + j.Meta.seqLength
     seq = b2i(b[cursor:seqEnd])
-    glog.V(5).Infof("Received resending shard %d request of job %s\n", seq, j.Meta.Name)
-    glog.V(5).Infoln(b)
+    // log.Printf("Received resending shard %d request of job %s\n", seq, j.Meta.Name)
+    // log.Println(b)
     cstart = MAX_SEND * seq
     cend = cstart + MAX_SEND
     if cend > end {
@@ -401,11 +401,11 @@ func(j *Job) resendData(b []byte, bufChan chan []byte) {
     }
     dataBuf := j.Compose(seq, j.buf[cstart:cend])
     bufChan <- dataBuf
-    glog.V(5).Infof("Resent shard %d of job %s\n", seq, j.Meta.Name)
+    // log.Printf("Resent shard %d of job %s\n", seq, j.Meta.Name)
     cursor = seqEnd
     count++
   }
-  glog.V(1).Infof("Resent %d shards for job %s id %d, last: %d\n", count, j.Meta.Name, j.Meta.Id, seq)
+  // log.Printf("Resent %d shards for job %s id %d, last: %d\n", count, j.Meta.Name, j.Meta.Id, seq)
 }
 
 // send job data
@@ -420,7 +420,7 @@ func (j *Job) send(bufChan chan []byte) {
     if cend > end {
       cend = end
     }
-    glog.V(5).Infof("Sending %d slice %d to %d \n", seq, cursor, cend)
+    // log.Printf("Sending %d slice %d to %d \n", seq, cursor, cend)
     dataBuf = j.Compose(seq, j.buf[cursor:cend])
     bufChan <- dataBuf
     cursor = cend
@@ -435,13 +435,13 @@ func (j *Job) ParseData(buf []byte) {
   seqEnd := 2 + j.Meta.seqLength
   seq := b2i(buf[2:seqEnd])
   if seq >= j.Meta.Seqs {
-    glog.Warningf("Wrong shard %d detected max: %d, bytes: \n", seq, j.Meta.Seqs)
-    glog.Warningln(buf[2:seqEnd])
+    log.Printf("Wrong shard %d detected max: %d, bytes: \n", seq, j.Meta.Seqs)
+    log.Println(buf[2:seqEnd])
     return
   }
   _, ok := j.Data[seq]
   if ok {
-    glog.Warningf("Duplicate data for job %d, seq %d\n", j.Meta.Id, seq)
+    log.Printf("Duplicate data for job %d, seq %d\n", j.Meta.Id, seq)
     return
   }
   j.Data[seq] = buf[seqEnd:]
@@ -463,7 +463,7 @@ func NewJob() *Job {
 func (i *Inventory) GetJob(id int) *Job {
   j, ok := i.Jobs[id]
   if !ok {
-    glog.Infof("Creating new job with id: %d\n",id)
+    log.Printf("Creating new job with id: %d\n",id)
     j = NewJob()
     j.Meta.Id = id
     i.Jobs[id] = j
@@ -473,7 +473,7 @@ func (i *Inventory) GetJob(id int) *Job {
 
 func (i *Inventory) Tick() {
   for id, j := range(i.Jobs) {
-    glog.Infof("Job %d %s %d/%d\n", id, j.Meta.Name, j.Count, j.Meta.Seqs)
+    log.Printf("Job %d %s %d/%d\n", id, j.Meta.Name, j.Count, j.Meta.Seqs)
   }
 }
 

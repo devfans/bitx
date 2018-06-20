@@ -6,7 +6,7 @@ import (
   "os"
   "flag"
   "time"
-  "github.com/golang/glog"
+  "log"
   "path/filepath"
   // "runtime"
 )
@@ -86,10 +86,10 @@ func (sess *Session) check(b []byte, sendChan chan Message) {
   id := int(b[1])
   j, ok := sess.inventory.Jobs[id]
   if !ok {
-    glog.Errorf("Invalid job id %d to check\n", id)
+    log.Printf("Invalid job id %d to check\n", id)
     return
   }
-  glog.Infof("Received check request for job %s id %d\n", j.Meta.Name, j.Meta.Id)
+  log.Printf("Received check request for job %s id %d\n", j.Meta.Name, j.Meta.Id)
   bufs, finish := j.Check()
   if finish {
       go func(job *Job) {
@@ -107,7 +107,7 @@ func (sess *Session) check(b []byte, sendChan chan Message) {
 }
 
 func(sess *Session) Remove(id int) {
-  glog.Infof("Cleaning job with id %d \n", id)
+  log.Printf("Cleaning job with id %d \n", id)
   delete(sess.inventory.Jobs, id)
 }
 
@@ -120,7 +120,7 @@ func (sess *Session) _process(buf []byte, sendChan chan Message) {
     case CHECK:
       sess.check(buf, sendChan)
     default:
-      glog.Warningf("Unhandled data: %s\n", string(buf))
+      log.Printf("Unhandled data: %s\n", string(buf))
   }
 }
 
@@ -128,17 +128,17 @@ func (sess *Session) processMeta(buf []byte, sendChan chan Message) {
   id := int(buf[1])
   j := sess.inventory.GetJob(id)
   if j.Finished {
-    glog.Infof("New replacing job with id %d\n", id)
+    log.Printf("New replacing job with id %d\n", id)
     j.Clear()
     j.Meta.Parse(buf)
 
     // runtime.GC()
-    // glog.Infoln("Manually gc triggered!")
+    // log.Println("Manually gc triggered!")
 
   } else if j.Count > 0 {
-    glog.Warningf("Duplicate job id %d, dropping now\n", id)
+    log.Printf("Duplicate job id %d, dropping now\n", id)
   } else {
-    glog.Infof("New job with id %d\n", id)
+    log.Printf("New job with id %d\n", id)
     j.Clear()
     j.Meta.Parse(buf)
   }
@@ -150,7 +150,7 @@ func (sess *Session) processData(buf []byte) {
   id := int(buf[1])
   j, ok := sess.inventory.Jobs[id]
   if !ok {
-    glog.Warningf("Dropping data for no such job id %d", id)
+    log.Printf("Dropping data for no such job id %d", id)
     return
   }
   j.ParseData(buf)
@@ -159,7 +159,7 @@ func (sess *Session) processData(buf []byte) {
 func (sess *Session) Tick() {
   for {
     time.Sleep(30 * time.Second)
-    glog.Infof("Session %s Tick:\n", sess.Addr)
+    log.Printf("Session %s Tick:\n", sess.Addr)
     sess.inventory.Tick()
   }
 }
@@ -182,7 +182,7 @@ func (s *Server) GetSession(addr string) *Session{
   if (!ok) {
     sess = NewSession(s.sendChan)
     sess.Addr = addr
-    glog.Infof("New client %s is connected!\n", addr)
+    log.Printf("New client %s is connected!\n", addr)
     s.Sessions[addr] = sess
   }
   return sess
@@ -222,8 +222,7 @@ func (s *Server) SendMessage() {
 
 func checkError(err error) {
   if err != nil {
-    glog.Errorf("Fatal error:%s\n", err.Error())
-    glog.Flush()
+    log.Printf("Fatal error:%s\n", err.Error())
     os.Exit(1)
   }
 }
@@ -244,7 +243,7 @@ func (s *Server) Start(udpAddress *net.UDPAddr) {
       time.Sleep(10*time.Second)
       count = s.counter
       tsp = time.Now().Unix()
-      glog.Infof("Speed %d KB/s\n", (count - tickCount)*int64(MAX_SEND)/(1000*(tsp - tickTime)))
+      log.Printf("Speed %d KB/s\n", (count - tickCount)*int64(MAX_SEND)/(1000*(tsp - tickTime)))
       tickTime = tsp
       tickCount = count
     }
@@ -265,7 +264,7 @@ func(c *Client) addFiles(files []string, directory string) {
   if directory != "" {
     err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
       if info.IsDir() { return nil }
-      glog.Infof("Adding file %s into the working queue \n", path)
+      log.Printf("Adding file %s into the working queue \n", path)
       c.jobChan <- path
       return nil
     })
@@ -273,7 +272,7 @@ func(c *Client) addFiles(files []string, directory string) {
   } else {
     for _, f := range(files) {
       c.jobChan <- f
-      glog.Infof("Adding file %s into the working queue \n", f)
+      log.Printf("Adding file %s into the working queue \n", f)
     }
   }
   c.jobChan <- "end"
@@ -284,19 +283,18 @@ func (c *Client) sendFiles() {
     file := <-c.jobChan
     c.simChan <- 1
     if file == "end" {
-      glog.Infoln("Jobs are consumed up, now waitting to finish...")
+      log.Println("Jobs are consumed up, now waitting to finish...")
       for si := 0; si < c.simSize - 1; si++ {
         c.simChan <- 1
       }
-      glog.Infoln("All jobs are finished, now ending")
-      glog.Flush()
+      log.Println("All jobs are finished, now ending")
       os.Exit(0)
       return
     }
     j := c.initJob(file)
     go j.Process(c.bufChan, c.simChan)
   }
-  // glog.Infoln("Sending of all files has been running...")
+  // log.Println("Sending of all files has been running...")
 }
 
 func (c *Client) newId() int {
@@ -310,7 +308,7 @@ func (c *Client) newId() int {
   if ok {
     for j.Empty.Load().(bool) == false {
       time.Sleep(time.Second)
-      glog.Infof("Waiting job with Id %d to be read...\n", id)
+      log.Printf("Waiting job with Id %d to be read...\n", id)
     }
   }
   return id
@@ -326,7 +324,7 @@ func (c *Client) sendData() {
       time.Sleep(2*time.Second)
       count = c.counter
       tsp = time.Now().Unix()
-      glog.Infof("Speed %d KB/s\n", (count - tickCount)*int64(MAX_SEND)/(1000*(tsp - tickTime)))
+      log.Printf("Speed %d KB/s\n", (count - tickCount)*int64(MAX_SEND)/(1000*(tsp - tickTime)))
       tickTime = tsp
       tickCount = count
     }
@@ -338,7 +336,7 @@ func (c *Client) sendData() {
     for wait {
       _, err := c.connection.Write(b)
       if err != nil {
-        glog.Errorln(err)
+        log.Println(err)
         time.Sleep(1*time.Second)
       } else {
         wait = false
@@ -370,11 +368,11 @@ func (c *Client) handle(b []byte) {
   id := int(b[1])
   j, ok := c.inventory.Jobs[id]
   if !ok {
-    glog.Warningf("Invalid job id %d\n", id)
+    log.Printf("Invalid job id %d\n", id)
     return
   }
   if j.Empty.Load().(bool) {
-    glog.Warningf("Job %d is empty, message is dropped!\n", id)
+    log.Printf("Job %d is empty, message is dropped!\n", id)
     return
   }
   j.Chan <- b
@@ -382,7 +380,7 @@ func (c *Client) handle(b []byte) {
 
 func (c *Client) initJob(name string) *Job {
   id := c.newId()
-  glog.Infof("Allocated id %d for job %s\n", id, name)
+  log.Printf("Allocated id %d for job %s\n", id, name)
   j := NewJob()
   j.Meta.Id = id
   j.Meta.Name = name
@@ -425,7 +423,7 @@ func NewClient(udpAddr *net.UDPAddr, simSize int) *Client {
 
 func startClient() {
   addrStr := fmt.Sprintf("%s:%s", *pHost, *pPort)
-  glog.Infof("Dialing to %s\n", addrStr)
+  log.Printf("Dialing to %s\n", addrStr)
   udpAddr, err := net.ResolveUDPAddr("udp4", addrStr)
   checkError(err)
 
@@ -436,7 +434,7 @@ func startClient() {
 func startServer() {
   addrStr := fmt.Sprintf("%s:%s", *pHost, *pPort)
 
-  glog.Infof("Listening on %s\n", addrStr)
+  log.Printf("Listening on %s\n", addrStr)
   udpAddress, err := net.ResolveUDPAddr("udp4", addrStr)
   checkError(err)
 
@@ -461,6 +459,5 @@ func main() {
   } else {
     startClient()
   }
-  glog.Flush()
 }
 
