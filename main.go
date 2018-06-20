@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
-	"net"
-	"os"
+  "fmt"
+  "net"
+  "os"
   "flag"
   "time"
   "github.com/golang/glog"
@@ -23,7 +23,7 @@ func (list *ArgList) Set(v string) error {
 }
 
 var (
-  pHost *string      = flag.String("i", "localhost", "host ip/remote receivor ip")
+  pHost *string      = flag.String("i", "", "host ip/remote receivor ip")
   pPort *string      = flag.String("p", "1200", "port")
   pRepeat *int       = flag.Int("r", 1, "repeat count for shards request")
   pIsServer *bool    = flag.Bool("s", false, "serve as receivor")
@@ -39,10 +39,10 @@ type Message struct {
 }
 
 type Client struct {
-	connection          *net.UDPConn
+  connection          *net.UDPConn
   udpAddr             *net.UDPAddr
   simSize             int             // max job threads at the same time
-	alive               bool
+  alive               bool
   inventory           *Inventory
   bufChan             chan []byte     // message queue for sending out
   revChan             chan []byte
@@ -53,14 +53,14 @@ type Client struct {
 }
 
 type Server struct {
-	Conn     *net.UDPConn
-	Sessions  map[string]*Session
+  Conn     *net.UDPConn
+  Sessions  map[string]*Session
   sendChan  chan Message              // message queue for sending out
   counter   int64
 }
 
 type Session struct {
-	Address     *net.UDPAddr
+  Address     *net.UDPAddr
   Addr        string
   inventory   *Inventory
   revChan     chan []byte
@@ -190,10 +190,10 @@ func (s *Server) GetSession(addr string) *Session{
 
 func (s *Server) HandleMessage() {
   buf := make([]byte, MAX_REV)
-	n, addr, err := s.Conn.ReadFromUDP(buf[0:])
-	if err != nil {
-		return
-	}
+  n, addr, err := s.Conn.ReadFromUDP(buf[0:])
+  if err != nil {
+    return
+  }
 
   sess := s.GetSession(addr.String())
   sess.Address = addr
@@ -216,21 +216,21 @@ func (s *Server) SendMessage() {
   for {
     m := <-s.sendChan
     _, err := s.Conn.WriteToUDP(m.Buf, m.Addr)
-	  checkError(err)
+    checkError(err)
   }
 }
 
 func checkError(err error) {
-	if err != nil {
-		glog.Errorf("Fatal error:%s\n", err.Error())
+  if err != nil {
+    glog.Errorf("Fatal error:%s\n", err.Error())
     glog.Flush()
-		os.Exit(1)
-	}
+    os.Exit(1)
+  }
 }
 
 func (s *Server) Start(udpAddress *net.UDPAddr) {
   var err error
-	s.Conn, err = net.ListenUDP("udp", udpAddress)
+  s.Conn, err = net.ListenUDP("udp", udpAddress)
   checkError(err)
 
   go s.SendMessage()
@@ -251,10 +251,10 @@ func (s *Server) Start(udpAddress *net.UDPAddr) {
   }()
 
   // main loop
-	for {
-		s.HandleMessage()
+  for {
+    s.HandleMessage()
     s.counter++
-	}
+  }
 }
 
 
@@ -350,13 +350,13 @@ func (c *Client) sendData() {
 
 func (c *Client) receiveMessage() {
   buf := make([]byte, MAX_REV)
-	for c.alive {
-		n, err := c.connection.Read(buf[0:])
-		checkError(err)
+  for c.alive {
+    n, err := c.connection.Read(buf[0:])
+    checkError(err)
     data := make([]byte, n)
     copy(data, buf[0:n])
     c.revChan <- data
-	}
+  }
 }
 
 func (c *Client) Handle() {
@@ -405,12 +405,12 @@ func (c *Client) Init(udpAddr *net.UDPAddr, simSize int) {
 
 func (c *Client) Start(files []string, directory string) {
   var err error
-	c.connection, err = net.DialUDP("udp", nil, c.udpAddr)
-	checkError(err)
-	defer c.connection.Close()
-	go c.receiveMessage()
+  c.connection, err = net.DialUDP("udp", nil, c.udpAddr)
+  checkError(err)
+  defer c.connection.Close()
+  go c.receiveMessage()
   go c.Handle()
-	go c.sendData()
+  go c.sendData()
   go c.addFiles(files, directory)
   c.sendFiles()
 }
@@ -427,7 +427,7 @@ func startClient() {
   addrStr := fmt.Sprintf("%s:%s", *pHost, *pPort)
   glog.Infof("Dialing to %s\n", addrStr)
   udpAddr, err := net.ResolveUDPAddr("udp4", addrStr)
-	checkError(err)
+  checkError(err)
 
   c := NewClient(udpAddr, *pSimSize)
   c.Start(pFiles, *pDirectory)
@@ -437,8 +437,8 @@ func startServer() {
   addrStr := fmt.Sprintf("%s:%s", *pHost, *pPort)
 
   glog.Infof("Listening on %s\n", addrStr)
-	udpAddress, err := net.ResolveUDPAddr("udp4", addrStr)
-	checkError(err)
+  udpAddress, err := net.ResolveUDPAddr("udp4", addrStr)
+  checkError(err)
 
   s := NewServer()
   s.Start(udpAddress)
