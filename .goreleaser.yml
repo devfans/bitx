@@ -1,6 +1,5 @@
 builds:
-  - main: main.go
-    binary: bitx
+  - binary: bitx
     goos:
       - windows
       - darwin
