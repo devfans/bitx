@@ -252,7 +252,7 @@ func (j *Job) Sum() {
 	b := make([]byte, j.Size)
 	var seq uint32 = 0
 	var cursor uint32 = 0
-	var size uint32 = 0
+	var size uint32
 	for seq < j.Meta.Seqs {
 		size = uint32(len(j.Data[seq]))
 		copy(b[cursor:cursor+size], j.Data[seq])

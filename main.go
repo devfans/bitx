@@ -316,7 +316,7 @@ func (c *Client) newId() int {
 }
 
 func (c *Client) sendData() {
-	wait := true
+	var wait bool
 	go func() {
 		var tickTime int64 = time.Now().Unix()
 		var tickCount int64 = c.counter
