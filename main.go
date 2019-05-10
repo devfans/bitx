@@ -27,6 +27,7 @@ var (
 	pPort      *string = flag.String("p", "1200", "port")
 	pRepeat    *int    = flag.Int("r", 1, "repeat count for shards request")
 	pIsServer  *bool   = flag.Bool("s", false, "serve as receivor")
+	pTerminal  *bool   = flag.Bool("t", false, "Optimize output for terminal")
 	pDirectory *string = flag.String("d", "", "directory of files to send")
 	pSimSize   *int    = flag.Int("c", 10, "batch size")
 	pMax       *int    = flag.Int("m", 512, "max datagram size in bytes, set on both size")
@@ -297,7 +298,7 @@ func (c *Client) addFiles(files []string, directory string) {
 			if info.IsDir() {
 				return nil
 			}
-			log.Printf("Adding file %s into the working queue \n", path)
+			Log("Adding file %s into the working queue", path)
 			c.jobChan <- path
 			return nil
 		})
@@ -305,7 +306,7 @@ func (c *Client) addFiles(files []string, directory string) {
 	} else {
 		for _, f := range files {
 			c.jobChan <- f
-			log.Printf("Adding file %s into the working queue \n", f)
+			Log("Adding file %s into the working queue", f)
 		}
 	}
 	c.jobChan <- "end"
@@ -316,11 +317,15 @@ func (c *Client) sendFiles() {
 		file := <-c.jobChan
 		c.simChan <- 1
 		if file == "end" {
-			log.Println("Jobs are consumed up, now waitting to finish...")
+			Logln("Jobs are consumed up, now waitting to finish...")
 			for si := 0; si < c.simSize-1; si++ {
 				c.simChan <- 1
 			}
-			log.Println("All jobs are finished, now ending")
+      Update(T_STOP, 0, "")
+			Logln("All jobs are finished, now ending")
+      if T != nil {
+        T.Exit()
+      }
 			os.Exit(0)
 			return
 		}
@@ -342,7 +347,7 @@ func (c *Client) newId() int {
 	if ok {
 		for j.Empty.Load().(bool) == false {
 			time.Sleep(time.Second)
-			log.Printf("Waiting job with Id %d to be read...\n", id)
+			Log("Waiting job with Id %d to be read...", id)
 		}
 	}
 	return id
@@ -358,7 +363,8 @@ func (c *Client) sendData() {
 			time.Sleep(2 * time.Second)
 			count = c.counter
 			tsp = time.Now().Unix()
-			log.Printf("Speed %d KB/s\n", (count-tickCount)*int64(MAX_SEND)/(1000*(tsp-tickTime)))
+			// Log("Speed %d KB/s", (count-tickCount)*int64(MAX_SEND)/(1000*(tsp-tickTime)))
+      Update(T_SPEED, uint32((count-tickCount)*int64(MAX_SEND)/(1000*(tsp-tickTime))), "")
 			tickTime = tsp
 			tickCount = count
 		}
@@ -370,7 +376,7 @@ func (c *Client) sendData() {
 		for wait {
 			_, err := c.connection.Write(b)
 			if err != nil {
-				log.Println(err)
+				Logln(err)
 				time.Sleep(1 * time.Second)
 			} else {
 				wait = false
@@ -402,11 +408,11 @@ func (c *Client) handle(b []byte) {
 	id := int(b[1])
 	j, ok := c.inventory.Jobs[id]
 	if !ok {
-		log.Printf("Invalid job id %d\n", id)
+		Log("Invalid job id %d", id)
 		return
 	}
 	if j.Empty.Load().(bool) {
-		log.Printf("Job %d is empty, message is dropped!\n", id)
+		Log("Job %d is empty, message is dropped!", id)
 		return
 	}
 	j.Chan <- b
@@ -414,7 +420,7 @@ func (c *Client) handle(b []byte) {
 
 func (c *Client) initJob(name string) *Job {
 	id := c.newId()
-	log.Printf("Allocated id %d for job %s\n", id, name)
+	Log("Allocated id %d for job %s", id, name)
 	j := NewJob()
 	j.Meta.Id = id
 	j.Meta.Name = name
@@ -456,8 +462,12 @@ func NewClient(udpAddr *net.UDPAddr, simSize int) *Client {
 //------------------- main -----------------------------
 
 func startClient() {
+  if *pTerminal {
+    fmt.Print("\033[2K\r")
+    T = NewTerminal()
+  }
 	addrStr := fmt.Sprintf("%s:%s", *pHost, *pPort)
-	log.Printf("Dialing to %s\n", addrStr)
+	Log("Dialing to %s", addrStr)
 	udpAddr, err := net.ResolveUDPAddr("udp4", addrStr)
 	checkError(err)
 
