@@ -27,21 +27,30 @@ Peak at: 30MB (Potential optimization of logic can be applied)
 ```
 ./bitx -h
 Usage of ./bitx:
+  -b int
+    	datagrams to store in one block, set on client side (default 1000000)
+  -bs int
+    	blocks in memory, set on client size (default 3)
   -c int
-    	numbers in batch (default 10)
+    	batch size (default 10)
   -d string
     	directory of files to send
   -f value
     	files to send, multiple -f is allowed
   -i string
     	host ip/remote receivor ip
+  -loop int
+    	session loop check interval (default 1)
   -m int
-    	max datagram size (default 512)
+    	max datagram size in bytes, set on both size (default 512)
   -p string
     	port (default "1200")
   -r int
     	repeat count for shards request (default 1)
   -s	serve as receivor
+  -t	Optimize output for terminal
+  -wait int
+    	data max wait time before send new request for it (default 3)
 ```
 
 Data Receivor:
