@@ -28,8 +28,12 @@ var (
 	pRepeat    *int    = flag.Int("r", 1, "repeat count for shards request")
 	pIsServer  *bool   = flag.Bool("s", false, "serve as receivor")
 	pDirectory *string = flag.String("d", "", "directory of files to send")
-	pSimSize   *int    = flag.Int("c", 10, "numbers in batch")
-	pMax       *int    = flag.Int("m", 512, "max datagram size")
+	pSimSize   *int    = flag.Int("c", 10, "batch size")
+	pMax       *int    = flag.Int("m", 512, "max datagram size in bytes, set on both size")
+	pBlockSize *int    = flag.Int("b", 1000000, "datagrams to store in one block, set on client side")
+	pBlockSim  *int    = flag.Int("bs", 3, "blocks in memory, set on client size")
+	pLoop      *int    = flag.Int("loop", 1, "session loop check interval")
+	pWait      *int    = flag.Int("wait", 3, "data max wait time before send new request for it")
 	pFiles     ArgList
 )
 
@@ -65,6 +69,10 @@ type Session struct {
 	inventory  *Inventory
 	revChan    chan []byte
 	finishChan chan int // finished job queue for cleaning up and release memory
+
+  loop       chan int
+  loopEnd    chan int
+  counter    uint32
 }
 
 func (sess *Session) Process(buf []byte) {
@@ -78,32 +86,34 @@ func (sess *Session) process(sendChan chan Message) {
 			sess._process(b, sendChan)
 		case id := <-sess.finishChan:
 			sess.Remove(id)
+    case <- sess.loop:
+      // now := time.Now().Unix()
+      sess.validate(sendChan)
+      sess.counter++
+      // log.Printf("loop tick elapse %vs\n", time.Now().Unix() - now)
 		}
 	}
 }
 
-func (sess *Session) check(b []byte, sendChan chan Message) {
-	id := int(b[1])
-	j, ok := sess.inventory.Jobs[id]
-	if !ok {
-		log.Printf("Invalid job id %d to check\n", id)
-		return
-	}
-	log.Printf("Received check request for job %s id %d\n", j.Meta.Name, j.Meta.Id)
-	bufs, finish := j.Check()
-	if finish {
-		go func(job *Job) {
-			time.Sleep(30 * time.Second)
-			// if job is not updated(replaced) it will be removed for GC
-			if job.GetTsp() < time.Now().Unix()-10 {
-				sess.finishChan <- job.Meta.Id
-			}
-		}(j)
-	}
-
-	for _, buf := range bufs {
-		sendChan <- Message{sess.Address, buf}
-	}
+func (sess *Session) validate(sink chan Message) {
+  // go through jobs 
+  for _, j := range sess.inventory.Jobs {
+    if !j.Finished {
+      bufs, finish := j.Validate(sess.counter)
+      if finish {
+        go func(job *Job, sinkChan chan Message) {
+          for i:= 0; i < 10; i++ {
+            sinkChan <- Message{sess.Address, j.MakeCFM()}
+            time.Sleep(time.Second)
+          }
+          sess.finishChan <- job.Meta.Id
+        }(j, sink)
+      }
+      for _, buf := range bufs {
+        sink <- Message{sess.Address, buf}
+      }
+    }
+  }
 }
 
 func (sess *Session) Remove(id int) {
@@ -117,8 +127,8 @@ func (sess *Session) _process(buf []byte, sendChan chan Message) {
 		sess.processMeta(buf, sendChan)
 	case DATA:
 		sess.processData(buf)
-	case CHECK:
-		sess.check(buf, sendChan)
+  case SYNC:
+    sess.processSync(buf)
 	default:
 		log.Printf("Unhandled data: %s\n", string(buf))
 	}
@@ -131,6 +141,7 @@ func (sess *Session) processMeta(buf []byte, sendChan chan Message) {
 		log.Printf("New replacing job with id %d\n", id)
 		j.Clear()
 		j.Meta.Parse(buf)
+    j.Start()
 
 		// runtime.GC()
 		// log.Println("Manually gc triggered!")
@@ -141,6 +152,7 @@ func (sess *Session) processMeta(buf []byte, sendChan chan Message) {
 		log.Printf("New job with id %d\n", id)
 		j.Clear()
 		j.Meta.Parse(buf)
+    j.Start()
 	}
 	metaCFM := j.MakeMetaCFM()
 	sendChan <- Message{sess.Address, metaCFM}
@@ -156,6 +168,17 @@ func (sess *Session) processData(buf []byte) {
 	j.ParseData(buf)
 }
 
+func (sess *Session) processSync(buf []byte) {
+	id := int(buf[1])
+	j, ok := sess.inventory.Jobs[id]
+	if !ok {
+		log.Printf("Dropping data for no such job id %d", id)
+		return
+	}
+	j.ParseSync(buf)
+}
+
+// TODO: Remove this
 func (sess *Session) Tick() {
 	for {
 		time.Sleep(30 * time.Second)
@@ -164,11 +187,27 @@ func (sess *Session) Tick() {
 	}
 }
 
+func (sess *Session) Loop() {
+  for {
+    select {
+    case <- sess.loopEnd:
+      return
+    default:
+      sess.loop <- 1
+    }
+    time.Sleep(LOOP)
+  }
+}
+
 func (sess *Session) Init(sendChan chan Message) {
 	sess.inventory = NewInventory()
 	sess.revChan = make(chan []byte, 20000)
 	sess.finishChan = make(chan int, 2000)
+	sess.loop = make(chan int, 10)
+	sess.loopEnd = make(chan int, 10)
+  sess.counter = 1
 	go sess.process(sendChan)
+	go sess.Loop()
 }
 
 func NewSession(sendChan chan Message) *Session {
@@ -217,13 +256,6 @@ func (s *Server) SendMessage() {
 		m := <-s.sendChan
 		_, err := s.Conn.WriteToUDP(m.Buf, m.Addr)
 		checkError(err)
-	}
-}
-
-func checkError(err error) {
-	if err != nil {
-		log.Printf("Fatal error:%s\n", err.Error())
-		os.Exit(1)
 	}
 }
 
@@ -294,6 +326,7 @@ func (c *Client) sendFiles() {
 		}
 		j := c.initJob(file)
 		go j.Process(c.bufChan, c.simChan)
+    go j.Sync(c.bufChan)
 	}
 	// log.Println("Sending of all files has been running...")
 }
@@ -453,7 +486,12 @@ func main() {
 	}
 
 	MAX_REV = uint32(*pMax)
-	MAX_SEND = MAX_REV - 5
+  // Max int 64 seq length is 8, plus message type 1 and job id 1
+	MAX_SEND = MAX_REV - 10
+  BLOCK_SIZE = uint32(*pBlockSize)
+  BLOCK_SIM = uint32(*pBlockSim)
+  MAX_WAIT  = uint32(*pWait)
+  LOOP      = time.Duration(*pLoop) * time.Second
 
 	if *pIsServer {
 		startServer()
