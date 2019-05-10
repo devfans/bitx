@@ -65,7 +65,7 @@ Data Sender:
 ./bitx -f file1 -f file2
 ```
 
-# Terminal Display Option(-t) (The display is valid only for signle file transfer)
+# Terminal Display Option(-t) (The display is valid only for single file transfer)
 
 ```
 bitx -f test.data -bs 1 -t
