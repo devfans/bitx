@@ -55,3 +55,22 @@ Data Sender:
 ```
 ./bitx -f file1 -f file2
 ```
+
+# Terminal Display Option(-t) (The display is valid only for signle file transfer)
+
+```
+bitx -f test.data -bs 1 -t
+File test.data Seqs: 2138928/2138928 Blocks(Size 1000000MB): 2/3 Parallel: 1 (1073 MB)  
+------------------------------------------------------------------
+Sent job meta for test.data id 0
+Allocated block 0 start 0 end 999999
+Read 502000000 bytes (offset 0) of file into block seq 0 to 999999
+Allocated block 1 start 1000000 end 1999999
+Read 502000000 bytes (offset 502000000) of file into block seq 1000000 to 1999999
+Allocated block 2 start 2000000 end 2138927
+Read 69741824 bytes (offset 1004000000) of file into block seq 2000000 to 2138927
+Job total length 1073741824
+Finished job test.data
+All jobs are finished, now ending
+Transfered [============================================] 100% 10699KB/s
+```
