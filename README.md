@@ -18,7 +18,7 @@ Avg speed: 3934 KB/s
   <img src="https://raw.githubusercontent.com/devfans/bitx/master/benchmark_avg.png" alt="benchmark avg"/>
 </p>
 
-Peak at: 30MB (Potential optimization of logic can be applied)
+Peak at: 39MB (Potential optimization of logic can be applied)
 <p align="center">
   <img src="https://raw.githubusercontent.com/devfans/bitx/master/benchmark_peak.png" alt="benchmark peak"/>
   
