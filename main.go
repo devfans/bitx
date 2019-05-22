@@ -26,6 +26,7 @@ var (
   pHost      *string = flag.String("i", "", "host ip/remote receivor ip")
   pPort      *string = flag.String("p", "1200", "port")
   pRepeat    *int    = flag.Int("r", 1, "repeat count for shards request")
+  pNoHash    *bool   = flag.Bool("nh", false, "Do not verify file md5 hash")
   pIsServer  *bool   = flag.Bool("s", false, "serve as receivor")
   pTerminal  *bool   = flag.Bool("t", false, "Optimize output for terminal")
   pDirectory *string = flag.String("d", "", "directory of files to send")
@@ -502,6 +503,7 @@ func main() {
   BLOCK_SIM = uint32(*pBlockSim)
   MAX_WAIT  = uint32(*pWait)
   LOOP      = time.Duration(*pLoop) * time.Second
+  NO_FILE_HASH = *pNoHash
 
   if *pIsServer {
     startServer()

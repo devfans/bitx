@@ -30,6 +30,7 @@ var (
   BLOCK_SIM  uint32 = 3
   MAX_WAIT   uint32 = 3
   LOOP       time.Duration = time.Duration(1) * time.Second
+  NO_FILE_HASH  bool = false
 )
 
 var (
@@ -636,14 +637,18 @@ func (j *Job) SaveBlock(b uint32) {
 }
 
 func (j *Job) Finalize() {
-  f, err := os.Open(j.Meta.Name)
-  checkError(err)
-  h := md5.New()
-  _, err = io.Copy(h, f)
-  f.Close()
-  checkError(err)
-  var hash [16]byte
-  copy(hash[0:], h.Sum(nil))
+  var hash [16]byte = [16]byte {}
+  if j.Meta.hash != hash && !NO_FILE_HASH {
+    f, err := os.Open(j.Meta.Name)
+    checkError(err)
+    h := md5.New()
+    _, err = io.Copy(h, f)
+    f.Close()
+    checkError(err)
+    copy(hash[0:], h.Sum(nil))
+  } else {
+    log.Println("Skipping file hashing verification!")
+  }
 
   log.Printf("Job %s hash:\n", j.Meta.Name)
   log.Println(hash)
@@ -700,13 +705,17 @@ func (j *Job) Prepare() {
   // step one: send job meta
   j.Meta.Seqs = uint32(math.Ceil(float64(j.bytes) / float64(MAX_SEND)))
   Update(T_SEQS, j.Meta.Seqs, "")
-  f, err := os.Open(j.Meta.Name)
-  checkError(err)
-  hash := md5.New()
-  _, err = io.Copy(hash, f)
-  f.Close()
-  checkError(err)
-  copy(j.Meta.hash[0:], hash.Sum(nil))
+  if NO_FILE_HASH {
+    j.Meta.hash = [16]byte {}
+  } else {
+    f, err := os.Open(j.Meta.Name)
+    checkError(err)
+    hash := md5.New()
+    _, err = io.Copy(hash, f)
+    f.Close()
+    checkError(err)
+    copy(j.Meta.hash[0:], hash.Sum(nil))
+  }
 }
 
 // client side sending file
