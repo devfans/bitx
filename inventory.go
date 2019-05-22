@@ -483,7 +483,12 @@ func (j *Job) AllocateBlock(bursor uint32) {
     block.Size = int(MAX_SEND) * int(block.End - block.Start + 1)
     block.Data = make([]byte, block.Size)
     j.Blocks[bursor] = block
-    Log("Allocated block %v start %v end %v", bursor, block.Start, block.End)
+
+    percents := 0
+    if j.Meta.Seqs > 0 {
+      percents = int(block.Start*100/j.Meta.Seqs)
+    }
+    Log("Allocated block %v start %v end %v progress %v %%", bursor, block.Start, block.End, percents)
   }
 }
 
@@ -950,11 +955,13 @@ func (j *Job) ParseData(buf []byte) {
   var bursor uint32 = seq / j.Meta.BlockSize
   if bursor > j.Meta.Blocks {
     log.Printf("Unknown seq %v %v/%v \n", seq, bursor, j.Meta.Blocks)
+    return
   }
 
   block, ok := j.Blocks[bursor]
   if !ok {
     log.Printf("Block %v is unavailable for this seq %v\n", bursor, seq)
+    return
   }
 
   if !block.On {
@@ -967,7 +974,7 @@ func (j *Job) ParseData(buf []byte) {
     block.CommitSequence(seq, buf[seqEnd:])
     j.Map[seq]  = 0
   } else if v == 0 {
-    log.Printf("Duplicate data for job %d, seq %d\n", j.Meta.Id, seq)
+    // log.Printf("Duplicate data for job %d, seq %d\n", j.Meta.Id, seq)
   } else {
     block.CommitSequence(seq, buf[seqEnd:])
     j.Map[seq]  = 0
