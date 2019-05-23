@@ -646,7 +646,7 @@ func (j *Job) SaveBlock(b uint32) {
   }
   f, err := os.OpenFile(j.Meta.Name, os.O_CREATE|os.O_WRONLY, 0644)
   checkError(err)
-  var cursor int64 = int64(block.Start * MAX_SEND)
+  var cursor int64 = int64(block.Start) * int64(MAX_SEND)
   offset, err := f.Seek(cursor, 0)
   checkError(err)
   size, err := f.Write(block.Data[0:block.Size])
@@ -941,7 +941,7 @@ func (j *Job) updateTursor() {
 func (j *Job) LoadBlock(block *Block) {
   f, err := os.Open(j.Meta.Name)
   checkError(err)
-  var cursor int64 = int64(block.Start * MAX_SEND)
+  var cursor int64 = int64(block.Start) * int64(MAX_SEND)
   size, err := f.ReadAt(block.Data, cursor)
   if err == io.EOF {
     block.Size = size
