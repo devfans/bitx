@@ -25,6 +25,7 @@ func (list *ArgList) Set(v string) error {
 var (
   pHost      *string = flag.String("i", "", "host ip/remote receivor ip")
   pPort      *string = flag.String("p", "1200", "port")
+  pStart     *int    = flag.Int("block", 0, "Start at block index")
   pRepeat    *int    = flag.Int("r", 1, "repeat count for shards request")
   pNoHash    *bool   = flag.Bool("nh", false, "Do not verify file md5 hash")
   pIsServer  *bool   = flag.Bool("s", false, "serve as receivor")
@@ -504,6 +505,7 @@ func main() {
   MAX_WAIT  = uint32(*pWait)
   LOOP      = time.Duration(*pLoop) * time.Second
   NO_FILE_HASH = *pNoHash
+  START_BLOCK = uint32(*pStart)
 
   if *pIsServer {
     startServer()

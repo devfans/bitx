@@ -30,7 +30,8 @@ var (
   BLOCK_SIM  uint32 = 3
   MAX_WAIT   uint32 = 3
   LOOP       time.Duration = time.Duration(1) * time.Second
-  NO_FILE_HASH  bool = false
+  NO_FILE_HASH  bool   = false
+  START_BLOCK   uint32 = 0
 )
 
 var (
@@ -225,7 +226,7 @@ func (t *Terminal) flush () {
     t.start = time.Now().Unix()
   }
   if t.seqs > 0 {
-    t.percents = int(t.seq*100/t.seqs)
+    t.percents = int(t.seq/(t.seqs/100))
   }
   duration := time.Now().Unix() - t.start
   if duration == 0 {
@@ -486,9 +487,9 @@ func (j *Job) AllocateBlock(bursor uint32) {
 
     percents := 0
     if j.Meta.Seqs > 0 {
-      percents = int(block.Start*100/j.Meta.Seqs)
+      percents = int(block.Start/(j.Meta.Seqs/100))
     }
-    Log("Allocated block %v start %v end %v progress %v %%", bursor, block.Start, block.End, percents)
+    Log("Allocated block %v start %v end %v progress %d %%(%v / %v)", bursor, block.Start, block.End, percents, block.Start, j.Meta.Seqs)
   }
 }
 
@@ -535,7 +536,7 @@ func (j *Job) Validate(counter uint32) ([][]byte, bool) {
   // check job seqs
   var v uint32
   loss := make([]uint32, 0)
-
+  cursor_clear_from := j.cursor
   for cindex := j.cursor; cindex < j.Cursor; cindex++ {
     v, ok = j.Map[cindex]
     if ok {
@@ -550,6 +551,11 @@ func (j *Job) Validate(counter uint32) ([][]byte, bool) {
     } else {
       j.Map[cindex] = counter
     }
+  }
+
+  // Clear map for old seqs
+  for cindex := cursor_clear_from; cindex < j.cursor; cindex++ {
+    delete(j.Map, cindex)
   }
 
   reqSync := make([]byte, 0)
@@ -596,7 +602,8 @@ func (j *Job) Validate(counter uint32) ([][]byte, bool) {
       bufs = append(bufs, req)
     }
   }
-  if v, ok = j.Map[j.Meta.Seqs - 1]; ok && v == 0 && j.bursor == j.Meta.Blocks {
+  // if v, ok = j.Map[j.Meta.Seqs - 1]; ok && v == 0 && j.bursor == j.Meta.Blocks {
+  if j.bursor == j.Meta.Blocks {
     j.Finished = true
     j.Finalize()
   }
@@ -607,9 +614,17 @@ func (j *Job) Validate(counter uint32) ([][]byte, bool) {
 // start job loop at server end
 func (j *Job) Start() {
   // allocate and request blocks
+  j.bursor = START_BLOCK
   var i uint32
-  for i = 0; i < j.Meta.BlockSim && i < j.Meta.Blocks; i++ {
+  for i = j.bursor; i < j.Meta.BlockSim + j.bursor && i < j.Meta.Blocks; i++ {
     j.AllocateBlock(i)
+  }
+  if j.bursor > 0 {
+    block, ok := j.Blocks[j.bursor]
+    if ok {
+      j.cursor = block.Start
+      log.Printf("Setting job cursor to %d\n", j.cursor)
+    }
   }
 }
 
@@ -629,7 +644,10 @@ func (j *Job) SaveBlock(b uint32) {
       }
     }
   }
-  f, err := os.OpenFile(j.Meta.Name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+  f, err := os.OpenFile(j.Meta.Name, os.O_CREATE|os.O_WRONLY, 0644)
+  checkError(err)
+  var cursor int64 = int64(block.Start * MAX_SEND)
+  offset, err := f.Seek(cursor, 0)
   checkError(err)
   size, err := f.Write(block.Data[0:block.Size])
   checkError(err)
@@ -638,7 +656,7 @@ func (j *Job) SaveBlock(b uint32) {
   checkError(err)
 
   delete(j.Blocks, b)
-  log.Printf("Appended %v block(%v bytes) to file %s.\n", b, size, j.Meta.Name)
+  log.Printf("Successfully saved block %v (%v bytes) to file %s offset %v.\n", b, size, j.Meta.Name, offset)
 }
 
 func (j *Job) Finalize() {
@@ -742,7 +760,8 @@ func (j *Job) Process(bufChan chan []byte, simChan chan int) {
       time.Sleep(2 * time.Second)
     }
   }
-  Log("Sent job meta for %s id %d", j.Meta.Name, j.Meta.Id)
+  j.bursor = START_BLOCK
+  Log("Sent job meta for %s id %d start sending block at %d", j.Meta.Name, j.Meta.Id, j.bursor)
 
   // step two: load into blocks and send job data
   j.sendInitialBlocks(bufChan)
@@ -835,7 +854,7 @@ func (j *Job) processBlock(b []byte, bufChan chan []byte) {
 // client side send initial blocks
 func (j *Job) sendInitialBlocks(bufChan chan []byte) {
   var i uint32
-  for i = 0; i < j.Meta.BlockSim && i < j.Meta.Blocks; i++ {
+  for i = j.bursor; i < j.Meta.BlockSim + j.bursor && i < j.Meta.Blocks; i++ {
     j.AllocateBlock(i)
     j.sendBlock(i, bufChan)
   }
@@ -952,6 +971,11 @@ func (j *Job) ParseSync(buf []byte) {
 func (j *Job) ParseData(buf []byte) {
   seqEnd := 2 + j.Meta.seqLength
   seq := b2i(buf[2:seqEnd])
+
+  if seq < j.cursor {
+    return
+  }
+
   var bursor uint32 = seq / j.Meta.BlockSize
   if bursor > j.Meta.Blocks {
     log.Printf("Unknown seq %v %v/%v \n", seq, bursor, j.Meta.Blocks)
