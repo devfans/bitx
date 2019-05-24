@@ -11,7 +11,24 @@ In some situations, a tcp connection based data transfer is unstable and has a l
 
 # Benchmark
 
-Transfer a file about 2.1GB from China to Japan through public Internet
+- Transfer a file about 100GB from Japan to China through public Internet
+
+Avg speed: 6.7MB/s
+
+```
+2019/05/23 15:50:20 Read 50200000 bytes (offset 107177000000) of file into block seq 213500000 to 213599999
+2019/05/23 15:50:24 Allocated block 2136 start 213600000 end 213699999 progress 99 %(213600000 / 213892794)
+2019/05/23 15:50:24 Read 50200000 bytes (offset 107227200000) of file into block seq 213600000 to 213699999
+2019/05/23 15:50:28 Allocated block 2137 start 213700000 end 213799999 progress 99 %(213700000 / 213892794)
+2019/05/23 15:50:28 Read 50200000 bytes (offset 107277400000) of file into block seq 213700000 to 213799999
+2019/05/23 15:50:32 Allocated block 2138 start 213800000 end 213892793 progress 99 %(213800000 / 213892794)
+2019/05/23 15:50:32 Read 46582400 bytes (offset 107327600000) of file into block seq 213800000 to 213892793
+2019/05/23 15:51:00 Job total length 107374182400
+2019/05/23 15:51:00 Finished job ./sensu.img Average speed: 6697 KB/s
+2019/05/23 15:51:00 All jobs are finished, now ending
+```
+
+- Transfer a file about 2.1GB from China to Japan through public Internet
 
 Avg speed: 3934 KB/s
 <p align="center">
@@ -29,6 +46,8 @@ Peak at: 39MB (Potential optimization of logic can be applied)
 Usage of ./bitx:
   -b int
     	datagrams to store in one block, set on client side (default 1000000)
+  -block int
+    	Start at block index (default 0)
   -bs int
     	blocks in memory, set on client size (default 3)
   -c int
@@ -43,6 +62,8 @@ Usage of ./bitx:
     	session loop check interval (default 1)
   -m int
     	max datagram size in bytes, set on both size (default 512)
+  -nh
+    	Do not verify file md5 hash
   -p string
     	port (default "1200")
   -r int
@@ -62,7 +83,7 @@ Data Receivor:
 Data Sender:
 
 ```
-./bitx -f file1 -f file2
+./bitx -i ip -p port -f file1 -f file2
 ```
 
 # Terminal Display Option(-t) (The display is valid only for single file transfer)
